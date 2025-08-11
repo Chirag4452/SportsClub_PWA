@@ -1,18 +1,24 @@
 /**
  * Dashboard Page Component
  * 
- * Main dashboard page for authenticated instructors showing
- * an overview of sports club operations and quick actions.
+ * Main dashboard tab with greeting, schedule management, calendar,
+ * and comprehensive overview of sports club operations.
  * 
  * @component  
- * @version 1.0.0
+ * @version 3.0.0
  */
 
+import { useCallback, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext.jsx'
-import Layout from '../components/Layout.jsx'
 import Card from '../components/Card.jsx'
 import Button from '../components/Button.jsx'
 import AppwriteConnectionTester from '../components/AppwriteConnectionTester.jsx'
+import GreetingSection from '../components/Dashboard/GreetingSection.jsx'
+import ScheduleButton from '../components/Dashboard/ScheduleButton.jsx'
+import Calendar from '../components/Dashboard/Calendar.jsx'
+import SchedulingModal from '../components/Dashboard/SchedulingModal.jsx'
+import { useScheduling } from '../hooks/useScheduling.js'
+import { SCHEDULING_CONFIG } from '../services/schedulingService.js'
 
 /**
  * Dashboard stats component
@@ -166,88 +172,269 @@ const QuickActions = () => {
 }
 
 /**
- * Main dashboard component
+ * Main dashboard component with integrated scheduling functionality
  * @function Dashboard
- * @returns {JSX.Element} Dashboard page
+ * @returns {JSX.Element} Dashboard page content
  */
 const Dashboard = () => {
-  const { user, instructor, logout } = useAuth()
+  const { instructor, user } = useAuth()
+  
+  // Scheduling state
+  const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false)
+  const [schedulingDefaultValues, setSchedulingDefaultValues] = useState({})
+  
+  // Use scheduling hook for real-time data and operations
+  const {
+    scheduleClasses,
+    cancelClasses,
+    statistics,
+    isScheduling,
+    isCancelling,
+    error: schedulingError,
+    clearError
+  } = useScheduling({
+    enableRealtime: true,
+    autoRefresh: true
+  })
 
-  const handleLogout = async () => {
-    const result = await logout()
-    if (result.success) {
-      // Redirect will be handled by the AuthContext and routing
-      console.log('Logged out successfully')
+  /**
+   * Open scheduling modal
+   * @function openSchedulingModal
+   * @param {Object} defaultValues - Default form values
+   */
+  const openSchedulingModal = useCallback((defaultValues = {}) => {
+    setSchedulingDefaultValues(defaultValues)
+    setIsSchedulingModalOpen(true)
+    if (schedulingError) clearError()
+  }, [schedulingError, clearError])
+
+  /**
+   * Close scheduling modal
+   * @function closeSchedulingModal
+   */
+  const closeSchedulingModal = useCallback(() => {
+    setIsSchedulingModalOpen(false)
+    setSchedulingDefaultValues({})
+  }, [])
+
+  /**
+   * Handle schedule action from schedule button
+   * @function handleScheduleAction
+   * @param {Object} option - Schedule option selected
+   */
+  const handleScheduleAction = useCallback((option) => {
+    console.log('Schedule action:', option)
+    
+    const defaultValues = {
+      action: SCHEDULING_CONFIG.ACTIONS.SCHEDULE
     }
-  }
+
+    // Set default date range based on option
+    const today = new Date()
+    const tomorrow = new Date(today)
+    tomorrow.setDate(today.getDate() + 1)
+    const nextWeek = new Date(today)
+    nextWeek.setDate(today.getDate() + 7)
+
+    switch (option.id) {
+      case 'schedule-new':
+        defaultValues.startDate = tomorrow.toISOString().split('T')[0]
+        defaultValues.endDate = tomorrow.toISOString().split('T')[0]
+        break
+      case 'schedule-recurring':
+        defaultValues.startDate = tomorrow.toISOString().split('T')[0]
+        defaultValues.endDate = nextWeek.toISOString().split('T')[0]
+        defaultValues.excludeWeekends = true
+        break
+      default:
+        break
+    }
+
+    openSchedulingModal(defaultValues)
+  }, [openSchedulingModal])
+
+  /**
+   * Handle cancel action from schedule button
+   * @function handleCancelAction
+   * @param {Object} option - Cancel option selected
+   */
+  const handleCancelAction = useCallback((option) => {
+    console.log('Cancel action:', option)
+    
+    const defaultValues = {
+      action: SCHEDULING_CONFIG.ACTIONS.CANCEL,
+      batches: ['morning', 'evening'] // Default to common batches
+    }
+
+    // Set default date range for cancellation
+    const today = new Date()
+    const nextWeek = new Date(today)
+    nextWeek.setDate(today.getDate() + 7)
+
+    defaultValues.startDate = today.toISOString().split('T')[0]
+    defaultValues.endDate = nextWeek.toISOString().split('T')[0]
+
+    openSchedulingModal(defaultValues)
+  }, [openSchedulingModal])
+
+  /**
+   * Handle calendar day click - open scheduling for that specific date
+   * @function handleCalendarDayClick
+   * @param {Object} dayData - Selected day data
+   */
+  const handleCalendarDayClick = useCallback((dayData) => {
+    console.log('Calendar day clicked:', dayData)
+    // Modal will be handled by Calendar component internally
+  }, [])
+
+  /**
+   * Handle calendar schedule click - from day details modal
+   * @function handleCalendarScheduleClick
+   * @param {string} dateString - Date string (YYYY-MM-DD)
+   */
+  const handleCalendarScheduleClick = useCallback((dateString) => {
+    console.log('Calendar schedule click for date:', dateString)
+    
+    const defaultValues = {
+      action: SCHEDULING_CONFIG.ACTIONS.SCHEDULE,
+      startDate: dateString,
+      endDate: dateString,
+      batches: [] // Let user choose
+    }
+
+    openSchedulingModal(defaultValues)
+  }, [openSchedulingModal])
+
+  /**
+   * Handle scheduling modal submission
+   * @function handleSchedulingSubmit
+   * @param {Object} formData - Form submission data
+   */
+  const handleSchedulingSubmit = useCallback(async (formData) => {
+    console.log('Scheduling submit:', formData)
+    
+    try {
+      let result
+      
+      if (formData.action === SCHEDULING_CONFIG.ACTIONS.SCHEDULE) {
+        result = await scheduleClasses({
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          batches: formData.batches,
+          excludeDays: formData.excludeDays || [],
+          skipConflicts: formData.skipConflicts || false,
+          notes: formData.notes || ''
+        })
+      } else if (formData.action === SCHEDULING_CONFIG.ACTIONS.CANCEL) {
+        result = await cancelClasses({
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          batches: formData.batches,
+          reason: formData.reason || ''
+        })
+      }
+
+      return result
+      
+    } catch (error) {
+      console.error('Scheduling operation failed:', error)
+      return {
+        success: false,
+        message: error.message || 'An unexpected error occurred'
+      }
+    }
+  }, [scheduleClasses, cancelClasses])
 
   return (
-    <Layout title="SportClubApp">
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        {/* Welcome Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Welcome back, {instructor?.name || user?.name || 'Instructor'}!
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Here's what's happening in your sports club today.
-              </p>
-            </div>
-            <div className="mt-4 sm:mt-0">
-              <Button variant="outline" onClick={handleLogout}>
-                Sign Out
-              </Button>
-            </div>
-          </div>
+    <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      {/* Greeting Section */}
+      <div className="mb-8">
+        <GreetingSection 
+          showTime={true}
+          showBusinessHours={true}
+          showQuickStats={false}
+        />
+      </div>
+
+      {/* Dashboard Stats */}
+      <DashboardStats />
+
+      {/* Primary Actions Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Schedule Management with Real Statistics */}
+        <ScheduleButton
+          onSchedule={handleScheduleAction}
+          onCancel={handleCancelAction}
+          stats={{
+            scheduledToday: statistics?.scheduled || 0,
+            totalStudents: 28 // This would come from student statistics
+          }}
+          showDropdown={true}
+          showStats={true}
+        />
+
+        {/* Calendar Overview with Scheduling Integration */}
+        <Calendar
+          onDayClick={handleCalendarDayClick}
+          onScheduleClick={handleCalendarScheduleClick}
+          showLegend={true}
+          showModal={true}
+          enableRealtime={true}
+          autoRefresh={true}
+          className="h-fit"
+        />
+      </div>
+
+      {/* Secondary Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column - Quick Actions */}
+        <div className="lg:col-span-2">
+          <Card title="Quick Actions" subtitle="Common tasks and operations">
+            <QuickActions />
+          </Card>
         </div>
 
-        {/* Dashboard Stats */}
-        <DashboardStats />
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Quick Actions */}
-          <div className="lg:col-span-2">
-            <Card title="Quick Actions" subtitle="Common tasks and operations">
-              <QuickActions />
-            </Card>
-          </div>
-
-          {/* Right Column - Recent Activity */}
-          <div>
-            <Card title="Recent Activity" subtitle="Latest system activity">
-              <div className="space-y-3">
-                {[
-                  { action: 'Student registered', time: '2 hours ago', type: 'success' },
-                  { action: 'Class scheduled', time: '3 hours ago', type: 'info' },
-                  { action: 'Payment received', time: '5 hours ago', type: 'success' },
-                  { action: 'Attendance marked', time: '1 day ago', type: 'info' }
-                ].map((activity, index) => (
-                  <div key={index} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50">
-                    <div className={`w-2 h-2 rounded-full ${
-                      activity.type === 'success' ? 'bg-green-500' : 'bg-blue-500'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                      <p className="text-xs text-gray-500">{activity.time}</p>
-                    </div>
+        {/* Right Column - Recent Activity */}
+        <div>
+          <Card title="Recent Activity" subtitle="Latest system activity">
+            <div className="space-y-3">
+              {[
+                { action: 'Student registered', time: '2 hours ago', type: 'success' },
+                { action: 'Class scheduled', time: '3 hours ago', type: 'info' },
+                { action: 'Payment received', time: '5 hours ago', type: 'success' },
+                { action: 'Attendance marked', time: '1 day ago', type: 'info' }
+              ].map((activity, index) => (
+                <div key={index} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50">
+                  <div className={`w-2 h-2 rounded-full ${
+                    activity.type === 'success' ? 'bg-green-500' : 'bg-blue-500'
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{activity.action}</p>
+                    <p className="text-xs text-gray-500">{activity.time}</p>
                   </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-        </div>
-
-        {/* Appwrite Integration Tester */}
-        <div className="mt-8">
-          <Card title="System Integration" subtitle="Test and monitor Appwrite connection">
-            <AppwriteConnectionTester />
+                </div>
+              ))}
+            </div>
           </Card>
         </div>
       </div>
-    </Layout>
+
+      {/* System Integration Section */}
+      <div className="mt-8">
+        <Card title="System Integration" subtitle="Test and monitor Appwrite connection">
+          <AppwriteConnectionTester />
+        </Card>
+      </div>
+
+      {/* Scheduling Modal */}
+      <SchedulingModal
+        isOpen={isSchedulingModalOpen}
+        onClose={closeSchedulingModal}
+        onSubmit={handleSchedulingSubmit}
+        isLoading={isScheduling || isCancelling}
+        defaultValues={schedulingDefaultValues}
+      />
+    </div>
   )
 }
 

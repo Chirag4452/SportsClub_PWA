@@ -119,6 +119,19 @@ p {
   padding-right: env(safe-area-inset-right);
 }
 
+/* Additional safe area utilities for navigation */
+.pt-safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.h-safe-bottom {
+  height: env(safe-area-inset-bottom);
+}
+
 /* Optimized touch targets for mobile */
 .touch-target {
   min-height: 44px;

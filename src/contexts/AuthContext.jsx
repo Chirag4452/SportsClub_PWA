@@ -9,7 +9,7 @@
  */
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { login as authLogin, logout as authLogout, isAuthenticated } from '../services/authService.js'
+import { login as authLogin, logout as authLogout, isAuthenticated as checkIsAuthenticated } from '../services/authService.js'
 import { handleError } from '../utils/errorHandler.js'
 
 /**
@@ -27,6 +27,7 @@ const AuthContext = createContext(null)
  * @example
  * const { user, login, logout, isLoading, error } = useAuth()
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext)
   
@@ -125,7 +126,7 @@ export const AuthProvider = ({ children }) => {
       
       console.log('🔍 Checking authentication status...')
       
-      const authStatusResponse = await isAuthenticated({
+      const authStatusResponse = await checkIsAuthenticated({
         validateInstructor: true,
         checkSession: true
       })
