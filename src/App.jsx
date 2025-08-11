@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Layout from './components/Layout'
 import Button from './components/Button'
 import Card from './components/Card'
+import AppwriteConnectionTester from './components/AppwriteConnectionTester'
 
 /**
  * Main App Component - SportClubApp PWA
@@ -16,6 +17,7 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [showAppwriteTester, setShowAppwriteTester] = useState(false)
   
   // PWA installation handling
   useEffect(() => {
@@ -115,8 +117,11 @@ function App() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button size="lg">
-              Get Started
+            <Button 
+              size="lg"
+              onClick={() => setShowAppwriteTester(!showAppwriteTester)}
+            >
+              {showAppwriteTester ? 'Hide' : 'Test'} Appwrite Integration
             </Button>
             <Button variant="outline" size="lg">
               Learn More
@@ -175,6 +180,13 @@ function App() {
           </Card>
         </div>
         
+        {/* Appwrite Integration Tester */}
+        {showAppwriteTester && (
+          <div className="mb-12">
+            <AppwriteConnectionTester />
+          </div>
+        )}
+
         {/* Button Showcase */}
         <Card title="Component Showcase" subtitle="Demonstrating various UI components">
           <div className="space-y-6">
