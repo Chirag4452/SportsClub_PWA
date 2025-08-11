@@ -596,4 +596,5 @@ const AppwriteConnectionTester = () => {
   )
 }
 
+export { ErrorDisplay }
 export default AppwriteConnectionTester
